@@ -30,6 +30,14 @@ export class UserGroupsService {
     return group;
   }
 
+  async findByName(name: string): Promise<UserGroup | null> {
+    return this.groupRepo.findOne({
+      where: { group_name: name },
+
+      relations: ['members', 'assignments'],
+    });
+  }
+
   async create(data: Partial<UserGroup>): Promise<UserGroup> {
     const group = this.groupRepo.create(data);
     return this.groupRepo.save(group);

@@ -11,7 +11,7 @@ export class SOPAssignment {
   @Column()
   sop_id: number;
 
-  @Column({ nullable: true }) // ✅ Tambahkan ini
+  @Column({ nullable: true }) 
   email?: string;
 
   @ManyToOne(() => SOP)

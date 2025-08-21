@@ -10,16 +10,34 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as path from 'path';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiConsumes,
+  ApiBody,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { SopsService } from './sops.service';
 import { SOPVersionsService } from 'src/sop_versions/sop_versions.service';
 import { CreateSOPDto } from './dto/create-sop.dto';
 import { UpdateSOPDto } from './dto/update-sop.dto';
 import { SOPStatus } from './dto/create-sop.dto';
 import { SopFilesService } from 'src/sop_files/sop_files.service';
+import { SOPVersion } from 'src/sop_versions/sop_version.entity';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
+interface ApiResponseType<T> {
+  data: T;
+  message: string;
+}
+
+@ApiTags('SOP')
 @Controller('sops')
 export class SopsController {
   constructor(
@@ -28,24 +46,44 @@ export class SopsController {
     private readonly sopFilesService: SopFilesService,
   ) {}
 
+
   @Post()
+  @ApiOperation({ summary: 'Buat SOP baru' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        description: { type: 'string' },
+        category_name: { type: 'string' },
+        division_name: { type: 'string' },
+        status: { type: 'string', enum: Object.values(SOPStatus) },
+        tags: { type: 'string', description: 'JSON string array, misal: ["tag1","tag2"]' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'File SOP, format PDF atau DOCX, max 10MB',
+        },
+      },
+      required: ['title', 'description', 'category_name', 'division_name'],
+    },
+  })
+  @ApiResponse({ status: 201, description: 'SOP berhasil dibuat' })
+  @ApiResponse({ status: 400, description: 'Validasi gagal atau file tidak sesuai' })
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+      limits: { fileSize: 10 * 1024 * 1024 },
       fileFilter: (req, file, cb) => {
         const allowed = ['.pdf', '.docx'];
         const ext = path.extname(file.originalname).toLowerCase();
         if (!allowed.includes(ext)) {
-          return cb(
-            new BadRequestException('Hanya file PDF atau DOCX yang diperbolehkan'),
-            false,
-          );
+          return cb(new BadRequestException('Hanya file PDF atau DOCX yang diperbolehkan'), false);
         }
         cb(null, true);
       },
     }),
   )
-  
   async create(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body('title') title: string,
@@ -53,39 +91,31 @@ export class SopsController {
     @Body('category_name') category_name: string,
     @Body('division_name') division_name: string,
     @Body('status') status?: string,
-    @Body('tags') rawTags?: string | string[]
-  ) {
-    // Validasi field wajib
+    @Body('tags') rawTags?: string | string[],
+  ): Promise<ApiResponseType<any>> {
     if (!title || !description || !category_name || !division_name) {
       throw new BadRequestException('Semua field wajib diisi (kecuali file)');
     }
 
-    // Cari ID category dan division berdasarkan nama
     const category = await this.sopsService.findCategoryByName(category_name);
-    if (!category) {
-      throw new BadRequestException(`Kategori "${category_name}" tidak ditemukan`);
-    }
+    if (!category) throw new BadRequestException(`Kategori "${category_name}" tidak ditemukan`);
 
     const division = await this.sopsService.findDivisionByName(division_name);
-    if (!division) {
-      throw new BadRequestException(`Divisi "${division_name}" tidak ditemukan`);
-    }
+    if (!division) throw new BadRequestException(`Divisi "${division_name}" tidak ditemukan`);
 
-    // Default status menjadi Pending Review
     const allowedStatus = Object.values(SOPStatus);
     const finalStatus: SOPStatus =
       status && allowedStatus.includes(status as SOPStatus)
         ? (status as SOPStatus)
         : SOPStatus.PendingReview;
 
-    // ✅ Normalisasi tags jadi array string
     let tags: string[] | undefined;
     if (typeof rawTags === 'string') {
       try {
         const parsed = JSON.parse(rawTags);
         tags = Array.isArray(parsed) ? parsed : [parsed];
       } catch {
-        tags = [rawTags]; 
+        tags = [rawTags];
       }
     } else if (Array.isArray(rawTags)) {
       tags = rawTags;
@@ -97,98 +127,158 @@ export class SopsController {
       category_id: category.id,
       division_id: division.id,
       status: finalStatus,
-      tags, 
+      tags,
     };
 
     const sop = await this.sopsService.create(dto);
 
-    // Simpan file ke tabel sop_files jika ada
+    let versionData;
     if (file) {
-      await this.sopFilesService.createFromUpload(sop.id, file);
+      versionData = await this.sopVersionsService.createAutomatically(sop.id, file);
     }
 
     return {
+      data: {
+        ...sop,
+        current_version: versionData ?? null,
+      },
       message: file
-        ? '✅ SOP berhasil dibuat dan file berhasil disimpan ke database.'
-        : '✅ SOP berhasil dibuat (tanpa file).',
-      sop,
+        ? 'SOP berhasil dibuat dan versi terbaru tersimpan.'
+        : 'SOP berhasil dibuat.',
     };
   }
 
-  @Get()
-  findAll() {
-    return this.sopsService.findAll();
+
+@Get()
+  async findAll(): Promise<ApiResponseType<any>> {
+    const sops = await this.sopsService.findAll(); 
+    return { data: sops, message: 'SOP list retrieved successfully' };
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.sopsService.findOne(id);
+  @ApiOperation({ summary: 'Ambil SOP berdasarkan ID' })
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<ApiResponseType<any>> {
+    const sop = await this.sopsService.findOne(id);
+    return { data: sop, message: 'SOP retrieved successfully' };
   }
-  
-@Patch(':id')
-@UseInterceptors(
-  FileInterceptor('file', {
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
-    fileFilter: (req, file, cb) => {
-      const allowed = ['.pdf', '.docx'];
-      const ext = path.extname(file.originalname).toLowerCase();
-      if (!allowed.includes(ext)) {
-        return cb(
-          new BadRequestException('Hanya file PDF atau DOCX yang diperbolehkan'),
-          false,
-        );
-      }
-      cb(null, true);
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update SOP berdasarkan id' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        description: { type: 'string' },
+        category_name: { type: 'string' },
+        division_name: { type: 'string' },
+        status: { type: 'string', enum: Object.values(SOPStatus) },
+        status_reason: { type: 'string' },
+        tags: { type: 'string', description: 'JSON string array, misal: ["tag1","tag2"]' },
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'File SOP, format PDF atau DOCX, max 10MB',
+        },
+      },
     },
-  }),
-)
-async updateFormData(
-  @Param('id', ParseIntPipe) id: number,
-  @UploadedFile() file: Express.Multer.File | undefined,
-  @Body('title') title?: string,
-  @Body('description') description?: string,
-  @Body('status') status?: string,
-  @Body('status_reason') status_reason?: string,
-  @Body('tags') rawTags?: string | string[],
-) {
-  // Normalisasi tags
-  let tags: string[] | undefined;
-  if (typeof rawTags === 'string') {
-    try {
-      const parsed = JSON.parse(rawTags);
-      tags = Array.isArray(parsed) ? parsed : [parsed];
-    } catch {
-      tags = [rawTags];
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (req, file, cb) => {
+        const allowed = ['.pdf', '.docx'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (!allowed.includes(ext)) {
+          return cb(new BadRequestException('Hanya file PDF atau DOCX yang diperbolehkan'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async updateFormData(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('title') title?: string,
+    @Body('description') description?: string,
+    @Body('category_name') category_name?: string,
+    @Body('division_name') division_name?: string,
+    @Body('status') status?: string,
+    @Body('status_reason') status_reason?: string,
+    @Body('tags') rawTags?: string | string[],
+    @UploadedFile() file?: Express.Multer.File,
+  ): Promise<ApiResponseType<any>> {
+    const dto: UpdateSOPDto = {};
+
+    if (title) dto.title = title;
+    if (description) dto.description = description;
+
+    if (category_name) {
+      const category = await this.sopsService.findCategoryByName(category_name);
+      if (!category) throw new BadRequestException(`Kategori "${category_name}" tidak ditemukan`);
+      dto.category_id = category.id;
     }
-  } else if (Array.isArray(rawTags)) {
-    tags = rawTags;
+
+    if (division_name) {
+      const division = await this.sopsService.findDivisionByName(division_name);
+      if (!division) throw new BadRequestException(`Divisi "${division_name}" tidak ditemukan`);
+      dto.division_id = division.id;
+    }
+
+    if (status) {
+      const allowedStatus = Object.values(SOPStatus);
+      if (!allowedStatus.includes(status as SOPStatus)) {
+        throw new BadRequestException(`Status tidak valid. Pilih salah satu: ${allowedStatus.join(', ')}`);
+      }
+      dto.status = status as SOPStatus;
+    }
+
+    if (status_reason) {
+      dto.status_reason = status_reason;
+    }
+
+    if (rawTags) {
+      if (typeof rawTags === 'string') {
+        try {
+          const parsed = JSON.parse(rawTags);
+          dto.tags = Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          dto.tags = [rawTags];
+        }
+      } else if (Array.isArray(rawTags)) {
+        dto.tags = rawTags;
+      }
+    }
+
+    const updatedSop = await this.sopsService.update(id, dto);
+
+    let versionData: SOPVersion | null = null;
+    if (file) {
+      versionData = await this.sopVersionsService.createAutomatically(updatedSop.id, file);
+    }
+
+    return {
+      data: {
+        ...updatedSop,
+        current_version: versionData ?? null,
+      },
+      message: file
+        ? 'SOP berhasil diperbarui dan versi baru tersimpan.'
+        : 'SOP berhasil diperbarui.',
+    };
   }
 
-  const dto: UpdateSOPDto = {
-    title,
-    description,
-    status: status as any,
-    status_reason,
-    tags,
-  };
-
-  const updatedSop = await this.sopsService.update(id, dto);
-
-  // Jika ada file baru, simpan file ke DB
-  if (file) {
-    await this.sopFilesService.createFromUpload(id, file);
+  @Get('user/:userId')
+  @ApiOperation({ summary: 'Ambil SOP berdasarkan user ID' })
+  async findByUser(@Param('userId', ParseIntPipe) userId: number): Promise<ApiResponseType<any>> {
+    const sops = await this.sopsService.findByUser(userId);
+    return { data: sops, message: 'SOPs retrieved successfully for user' };
   }
-
-  return {
-    message: file
-      ? '✅ SOP berhasil diperbarui dan file baru disimpan.'
-      : '✅ SOP berhasil diperbarui.',
-    sop: updatedSop,
-  };
-}
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.sopsService.remove(id);
+  @ApiOperation({ summary: 'Hapus SOP berdasarkan ID' })
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<ApiResponseType<null>> {
+    await this.sopsService.remove(id);
+    return { data: null, message: 'SOP deleted successfully' };
   }
 }

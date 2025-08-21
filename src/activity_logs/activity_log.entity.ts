@@ -1,12 +1,14 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from 'src/users/user.entity';
 import { SOP } from 'src/sops/sop.entity';
+import { ApiProperty } from "@nestjs/swagger";
 
 @Entity('activity_logs')
 export class ActivityLog {
   @PrimaryGeneratedColumn()
   id: number;
 
+  @ApiProperty()
   @Column({ nullable: true })
   user_id?: number;
 
@@ -14,12 +16,15 @@ export class ActivityLog {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
+  @ApiProperty()
   @Column({ type: 'enum', enum: ['Login', 'Upload', 'AI Query'] })
   activity_type: string;
 
+  @ApiProperty()
   @Column('text')
   activity_description: string;
 
+  @ApiProperty()
   @Column({ nullable: true })
   sop_id: number;
 
@@ -27,9 +32,11 @@ export class ActivityLog {
   @JoinColumn({ name: 'sop_id' })
   sop: SOP;
 
+  @ApiProperty()
   @CreateDateColumn()
   timestamp: Date;
 
+  @ApiProperty()
   @Column()
   ip_address: string;
 }

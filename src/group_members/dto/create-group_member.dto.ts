@@ -1,9 +1,12 @@
 import { IsInt } from 'class-validator';
+import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateGroupMemberDto {
+  @ApiProperty()
   @IsInt()
-  group_id: number;
+  group_name: string;
 
+  @ApiProperty()
   @IsInt()
-  user_id: number;
+  user_name: string;
 }

@@ -32,14 +32,14 @@ export class SOPVersion {
   changelog: string;
 
   @Column({ nullable: true })
-  uploaded_by_user_id: number;
+  uploaded_by_user_id?: number;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'uploaded_by_user_id' })
   uploaded_by: User;
 
   @Column({ nullable: true })
-  approved_by_user_id: number;
+  approved_by_user_id?: number;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'approved_by_user_id' })

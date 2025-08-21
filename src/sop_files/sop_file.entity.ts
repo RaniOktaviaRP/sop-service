@@ -20,11 +20,14 @@ export class SOPFile {
   @Column({ nullable: true })
   file_type: string;
 
-  @Column()
-  file_path: string;
+  @Column({ type: 'bigint', nullable: true })
+  file_size: number;
+
+  @Column({ type: 'bytea', nullable: true }) 
+  data: Buffer;
 
   @Column({ nullable: true })
-  file_size: number;
+  file_path?: string;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'uploaded_by_user_id' })

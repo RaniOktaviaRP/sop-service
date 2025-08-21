@@ -1,30 +1,29 @@
-import {
-  Controller, Post, Param, UploadedFile, UseInterceptors, ParseIntPipe
-} from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { SOPVersionsService } from './sop_versions.service';
-import * as path from 'path';
+import { Controller, Get, Param, NotFoundException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { SOPVersion } from './sop_version.entity';
 
+@ApiTags('SOP Versions')
 @Controller('sop-versions')
 export class SOPVersionsController {
-  constructor(private readonly service: SOPVersionsService) {}
+  constructor(
+    @InjectRepository(SOPVersion)
+    private readonly versionRepo: Repository<SOPVersion>,
+  ) {}
 
-  @Post('upload/:sopId')
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: './uploads',
-      filename: (req, file, cb) => {
-        const filename = `${Date.now()}-${file.originalname}`;
-        cb(null, filename);
-      },
-    }),
-  }))
-  
-  async upload(
-    @Param('sopId', ParseIntPipe) sopId: number,
-    @UploadedFile() file: Express.Multer.File
-  ) {
-    return this.service.createAutomatically(sopId, file);
+  @Get(':id/preview')
+  @ApiOperation({ summary: 'Lihat isi text_content dari SOP Version' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID SOP Version' })
+  @ApiResponse({ status: 200, description: 'Preview text dari file' })
+  async getPreview(@Param('id') id: number) {
+    const version = await this.versionRepo.findOne({ where: { id } });
+    if (!version) throw new NotFoundException('SOP Version tidak ditemukan');
+
+    return {
+      preview_text: version.text_content
+        ? version.text_content.substring(0, 1000) 
+        : null,
+    };
   }
 }

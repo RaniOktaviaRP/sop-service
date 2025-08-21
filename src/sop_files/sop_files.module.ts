@@ -8,6 +8,6 @@ import { SOPFile } from './sop_file.entity';
   imports: [TypeOrmModule.forFeature([SOPFile])],
   controllers: [SopFilesController],
   providers: [SopFilesService],
-  exports: [SopFilesService], // ✅ Jika servicenya akan digunakan di modul lain
+  exports: [SopFilesService],
 })
 export class SopFilesModule {}

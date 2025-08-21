@@ -35,6 +35,12 @@ export class GroupMembersService {
     return this.memberRepo.save(member);
   }
 
+  async update(id: number, data: Partial<GroupMember>): Promise<GroupMember> {
+    const member = await this.findOne(id);
+    Object.assign(member, data);
+    return this.memberRepo.save(member);
+  }
+
   async delete(id: number): Promise<void> {
     const member = await this.findOne(id);
     await this.memberRepo.remove(member);
