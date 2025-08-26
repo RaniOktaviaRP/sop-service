@@ -41,6 +41,8 @@ export class DivisionsController {
     };
   }
 
+  
+
   @Get(':id')
   @ApiOperation({ summary: 'Ambil divisi berdasarkan ID' })
   @ApiResponse({ status: 200, description: 'Berhasil mengambil divisi' })

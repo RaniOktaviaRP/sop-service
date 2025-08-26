@@ -53,6 +53,9 @@ export class SopsController {
 
 
   @Post()
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin')
   @ApiOperation({ summary: 'Buat SOP baru' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -155,14 +158,38 @@ export class SopsController {
 
 
   // 🔹 GET ALL SOP (hanya untuk division user yg login)
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin', 'Employee')
   @Get()
-  async findAll(): Promise<ApiResponseType<any>> {
-    const sops = await this.sopsService.findAll();
+  async findAll(
+    @Request() req,
+    @Query('divisionId') divisionId?: number,
+    @Query('groupId') groupId?: number,
+    @Query('userId') userId?: number
+  ): Promise<ApiResponseType<any>> {
+
+    console.log("👉 Token dari header:", req.headers.authorization);
+    console.log("👉 Payload hasil verify:", req.user);
+
+    // Default: gunakan division_id dari token jika tidak dikirim query param
+    const divId = divisionId || req.user.division_id;
+
+    // Panggil service dengan filter
+    const sops = await this.sopsService.findFiltered({
+      divisionId: divId,
+      groupId,
+      userId
+    });
+
     return { data: sops, message: 'SOP list retrieved successfully' };
   }
 
-  @Get(':id')
 
+  @Get(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin', 'Employee')
   @ApiOperation({ summary: 'Ambil SOP berdasarkan ID' })
   async findOne(@Param('id', ParseIntPipe) id: number): Promise<ApiResponseType<any>> {
     const sop = await this.sopsService.findOne(id);
@@ -170,6 +197,10 @@ export class SopsController {
   }
 
   @Patch(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin')
+
   @ApiOperation({ summary: 'Update SOP berdasarkan id' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -276,6 +307,9 @@ export class SopsController {
   }
 
   @Get('user/:userId')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin', 'Employee')
   @ApiOperation({ summary: 'Ambil SOP berdasarkan user ID' })
   async findByUser(@Param('userId', ParseIntPipe) userId: number): Promise<ApiResponseType<any>> {
     const sops = await this.sopsService.findByUser(userId);
@@ -283,6 +317,10 @@ export class SopsController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin')
+
   @ApiOperation({ summary: 'Hapus SOP berdasarkan ID' })
   async remove(@Param('id', ParseIntPipe) id: number): Promise<ApiResponseType<null>> {
     await this.sopsService.remove(id);
@@ -290,6 +328,9 @@ export class SopsController {
   }
 
   @Get(':id/preview')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin', 'Employee')
   @ApiOperation({ summary: 'Lihat preview text_content dari SOP terbaru' })
   @ApiParam({ name: 'id', type: Number, description: 'ID SOP' })
   @ApiResponse({ status: 200, description: 'Preview text dari file SOP' })
@@ -307,5 +348,4 @@ export class SopsController {
         : null,
     };
   }
-
 }

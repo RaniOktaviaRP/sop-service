@@ -36,6 +36,9 @@ export class CategoriesController {
   constructor(private readonly service: CategoriesService) { }
 
   @Get()
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin', 'Employee')
   @ApiOperation({ summary: 'Ambil semua kategori' })
   @ApiResponse({ status: 200, description: 'Berhasil mengambil daftar kategori' })
   async findAll(): Promise<ApiResponseType<Category[]>> {
@@ -47,6 +50,9 @@ export class CategoriesController {
   }
 
   @Get(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin', 'Employee')
   @ApiOperation({ summary: 'Ambil kategori berdasarkan ID' })
   @ApiResponse({ status: 200, description: 'Berhasil mengambil kategori' })
   @ApiResponse({ status: 404, description: 'Kategori tidak ditemukan' })
@@ -59,6 +65,10 @@ export class CategoriesController {
   }
 
   @Post()
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin')
+
   @ApiOperation({ summary: 'Buat kategori baru' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: Category, description: 'Data kategori baru' })
@@ -73,6 +83,10 @@ export class CategoriesController {
   }
 
   @Patch(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin')
+
   @ApiOperation({ summary: 'Update kategori berdasarkan ID' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: Category, description: 'Data kategori untuk update' })
@@ -91,6 +105,10 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @ApiBearerAuth('access-token')
+  @UseGuards(JwtAuthGuard)
+  @Roles('Admin')
+
   @ApiOperation({ summary: 'Hapus kategori berdasarkan ID' })
   @ApiResponse({ status: 200, description: 'Kategori berhasil dihapus' })
   @ApiResponse({ status: 404, description: 'Kategori tidak ditemukan' })
