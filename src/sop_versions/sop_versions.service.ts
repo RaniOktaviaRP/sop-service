@@ -21,10 +21,11 @@ export class SOPVersionsService {
     private readonly fileRepo: Repository<SOPFile>,
   ) {}
 
+  // Membuat versi baru otomatis dari file
   async createAutomatically(
     sop_id: number,
     file: Express.Multer.File,
-    uploadedByUserId?: number, 
+    uploadedByUserId?: number,
   ) {
     const sop = await this.sopRepo.findOne({ where: { id: sop_id } });
     if (!sop) throw new NotFoundException('SOP tidak ditemukan');
@@ -37,13 +38,14 @@ export class SOPVersionsService {
 
     // Ambil versi terakhir
     const lastVersion = await this.versionRepo.findOne({
-      where: { sop: { id: sop_id } },
+      where: { sop_id: sop.id },
       order: { uploaded_at: 'DESC' },
     });
     const nextVersion = lastVersion
       ? (parseFloat(lastVersion.version_number) + 0.1).toFixed(1)
       : '1.0';
 
+    // Simpan file
     const sopFile = this.fileRepo.create({
       file_name: file.originalname,
       file_type: fileType,
@@ -54,7 +56,7 @@ export class SOPVersionsService {
     });
     const savedFile = await this.fileRepo.save(sopFile);
 
-    // Ekstrak teks dari file
+    // Ekstrak text content
     let text_content = '';
     try {
       if (fileType === 'PDF') {
@@ -68,6 +70,7 @@ export class SOPVersionsService {
       console.error('Gagal ekstrak teks:', err.message);
     }
 
+    // Simpan versi SOP
     const versionData: DeepPartial<SOPVersion> = {
       sop_id: sop.id,
       version_number: nextVersion,
@@ -78,18 +81,36 @@ export class SOPVersionsService {
       uploaded_by_user_id: uploadedByUserId ?? undefined,
       approved_by_user_id: undefined,
     };
-
     const version = this.versionRepo.create(versionData);
     const savedVersion = await this.versionRepo.save(version);
 
-    // update SOP
+    // Update SOP current_version_id
     sop.current_version_id = savedVersion.id;
     await this.sopRepo.save(sop);
 
-
     return {
       ...savedVersion,
-      preview_text: text_content ? text_content.substring(0, 500) : null, 
+      preview_text: text_content ? text_content.substring(0, 500) : null,
+    };
+  }
+
+  // Ambil versi terakhir berdasarkan SOP ID
+  async findLatestBySopId(sopId: number): Promise<SOPVersion | null> {
+    return this.versionRepo.findOne({
+      where: { sop_id: sopId },
+      order: { uploaded_at: 'DESC' },
+    });
+  }
+
+  // Ambil preview text dari versi terakhir
+  async getPreviewBySopId(sopId: number, length: number = 1000) {
+    const latestVersion = await this.findLatestBySopId(sopId);
+    if (!latestVersion) return null;
+
+    return {
+      preview_text: latestVersion.text_content
+        ? latestVersion.text_content.substring(0, length)
+        : null,
     };
   }
 }

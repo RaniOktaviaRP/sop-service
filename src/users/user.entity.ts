@@ -48,6 +48,10 @@ export class User {
   @Column()
   division_id: number;
 
+  @ApiProperty()
+  @Column({ nullable: true })
+  group_id: number;
+
   @OneToMany(() => SOP, (sop) => sop.created_by_user)
   sops: SOP[];
 

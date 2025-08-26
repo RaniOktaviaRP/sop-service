@@ -34,11 +34,11 @@ export class SOPAssignmentsController {
     schema: {
       type: 'object',
       properties: {
-        groupName: { type: 'string', example: 'Team QA' },
-        userName: { type: 'string', example: 'Rani Oktavia' },
+        group_name: { type: 'string', example: 'Team QA' },
+        user_name: { type: 'string', example: 'Rani Oktavia' },
         sopId: { type: 'number', example: 1 }
       },
-      required: ['groupName', 'userName', 'sopId'],
+      required: ['sopId'],
     },
   })
   @ApiResponse({ status: 201, description: 'SOP assignment created', type: SOPAssignment })

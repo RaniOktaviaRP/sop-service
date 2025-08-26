@@ -5,6 +5,7 @@ import {
   Post,
   Body,
   Patch,
+  UseGuards,
   Delete,
   ParseIntPipe,
   UseInterceptors,
@@ -18,7 +19,11 @@ import {
   ApiConsumes,
   ApiBody,
   ApiResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
+import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 
 interface ApiResponseType<T> {
   data: T;
@@ -28,7 +33,7 @@ interface ApiResponseType<T> {
 @ApiTags('Categories')
 @Controller('categories')
 export class CategoriesController {
-  constructor(private readonly service: CategoriesService) {}
+  constructor(private readonly service: CategoriesService) { }
 
   @Get()
   @ApiOperation({ summary: 'Ambil semua kategori' })

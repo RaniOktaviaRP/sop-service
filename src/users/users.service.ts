@@ -69,4 +69,13 @@ export class UsersService {
     const user = await this.findOne(id);
     return this.userRepo.remove(user);
   }
+
+  async updateGroup(userId: number, groupId: number) {
+  const user = await this.userRepo.findOne({ where: { id: userId } });
+  if (!user) throw new NotFoundException('User not found');
+
+  user.group_id = groupId; // langsung update kolom group_id
+  return this.userRepo.save(user);
+}
+
 }

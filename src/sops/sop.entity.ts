@@ -14,6 +14,7 @@ import { User } from 'src/users/user.entity';
 import { SOPVersion } from '../sop_versions/sop_version.entity';
 import { SOPFile } from 'src/sop_files/sop_file.entity';
 import { ApiProperty } from "@nestjs/swagger";
+import { SOPAssignment } from 'src/sop_assignments/sop_assignment.entity';
 
 @Entity('sops')
 export class SOP {
@@ -46,6 +47,10 @@ export class SOP {
   @ManyToOne(() => Category)
   @JoinColumn({ name: 'category_id' })
   category: Category;
+
+  @OneToMany(() => SOPAssignment, (assignment) => assignment.sop)
+  sopAssignments: SOPAssignment[];
+
 
   @ManyToOne(() => Division)
   @JoinColumn({ name: 'division_id' })

@@ -6,19 +6,18 @@ import { User } from 'src/users/user.entity';
 
 @Entity('user_groups')
 export class UserGroup {
-  @ApiProperty({ example: 1 })
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ApiProperty({ example: 'Divisi Keuangan' })
-  @Column()
+  @ApiProperty()
+  @Column({ nullable: true })
   group_name: string;
 
-  @ApiProperty({ example: 'Grup untuk divisi keuangan perusahaan' })
-  @Column('text')
+  @ApiProperty()
+  @Column({ nullable: true })
   description: string;
 
-  @OneToMany(() => GroupMember, gm => gm.group)
+  @OneToMany(() => GroupMember, (member) => member.group)
   members: GroupMember[];
 
   @OneToMany(() => SOPAssignment, (assignment) => assignment.group)

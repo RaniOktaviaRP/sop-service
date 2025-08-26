@@ -9,6 +9,6 @@ import { Division } from '../divisions/division.entity';
   imports: [TypeOrmModule.forFeature([User, Division])],
   providers: [UsersService],
   controllers: [UsersController],
-  exports: [UsersService], 
+  exports: [UsersService, TypeOrmModule],
 })
 export class UsersModule {}

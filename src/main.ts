@@ -12,18 +12,24 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Set global prefix
+  app.setGlobalPrefix('api');
+
+  // Ambil origins dari .env
+  let corsOrigins: string[] = [];
+  if (process.env.CORS_ORIGINS) {
+    corsOrigins = process.env.CORS_ORIGINS.split(",").map(o => o.trim());
+  }
+
   // Aktif CORS
   app.enableCors({
-    origin: [
-      'http://localhost:3001',
-      'https://production-todd-clara-shoulder.trycloudflare.com',
-    ],
-    methods: ['GET', 'POST', 'DELETE', 'PATCH'],
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     credentials: true,
   });
 
-  // Swagger
-  const config = new DocumentBuilder()
+  // Swagger setup
+  const swaggerConfig = new DocumentBuilder()
     .setTitle("SOP Management API")
     .setDescription("API untuk mengelola Standard Operating Procedure (SOP) perusahaan")
     .setVersion("1.0")
@@ -40,9 +46,10 @@ async function bootstrap() {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup("docs", app, document);
 
   await app.listen(process.env.PORT ?? 3000);
+  console.log(`Server running on port ${process.env.PORT ?? 3000}`);
 }
 bootstrap();

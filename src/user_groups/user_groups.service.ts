@@ -30,9 +30,9 @@ export class UserGroupsService {
     return group;
   }
 
-  async findByName(name: string): Promise<UserGroup | null> {
+  async findByName(group_name: string): Promise<UserGroup | null> {
     return this.groupRepo.findOne({
-      where: { group_name: name },
+      where: { group_name: group_name },
 
       relations: ['members', 'assignments'],
     });

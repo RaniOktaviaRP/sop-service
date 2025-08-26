@@ -12,6 +12,8 @@ import {
   BadRequestException,
   UseGuards,
   Request,
+  Query,
+  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as path from 'path';
@@ -22,6 +24,7 @@ import {
   ApiBody,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { SopsService } from './sops.service';
 import { SOPVersionsService } from 'src/sop_versions/sop_versions.service';
@@ -31,6 +34,8 @@ import { SOPStatus } from './dto/create-sop.dto';
 import { SopFilesService } from 'src/sop_files/sop_files.service';
 import { SOPVersion } from 'src/sop_versions/sop_version.entity';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { Roles } from 'src/auth/roles.decorator';
+import { RolesGuard } from 'src/auth/roles.guard';
 
 interface ApiResponseType<T> {
   data: T;
@@ -44,7 +49,7 @@ export class SopsController {
     private readonly sopsService: SopsService,
     private readonly sopVersionsService: SOPVersionsService,
     private readonly sopFilesService: SopFilesService,
-  ) {}
+  ) { }
 
 
   @Post()
@@ -149,13 +154,15 @@ export class SopsController {
   }
 
 
-@Get()
+  // 🔹 GET ALL SOP (hanya untuk division user yg login)
+  @Get()
   async findAll(): Promise<ApiResponseType<any>> {
-    const sops = await this.sopsService.findAll(); 
+    const sops = await this.sopsService.findAll();
     return { data: sops, message: 'SOP list retrieved successfully' };
   }
 
   @Get(':id')
+
   @ApiOperation({ summary: 'Ambil SOP berdasarkan ID' })
   async findOne(@Param('id', ParseIntPipe) id: number): Promise<ApiResponseType<any>> {
     const sop = await this.sopsService.findOne(id);
@@ -281,4 +288,24 @@ export class SopsController {
     await this.sopsService.remove(id);
     return { data: null, message: 'SOP deleted successfully' };
   }
+
+  @Get(':id/preview')
+  @ApiOperation({ summary: 'Lihat preview text_content dari SOP terbaru' })
+  @ApiParam({ name: 'id', type: Number, description: 'ID SOP' })
+  @ApiResponse({ status: 200, description: 'Preview text dari file SOP' })
+  async getSopPreview(@Param('id', ParseIntPipe) sopId: number) {
+    // cari versi terbaru berdasarkan sop_id
+    const latestVersion = await this.sopVersionsService.findLatestBySopId(sopId);
+
+    if (!latestVersion) throw new NotFoundException('Versi SOP tidak ditemukan');
+
+    return {
+      sop_id: sopId,
+      version_id: latestVersion.id,
+      preview_text: latestVersion.text_content
+        ? latestVersion.text_content.substring(0, 1000)
+        : null,
+    };
+  }
+
 }

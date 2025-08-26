@@ -37,7 +37,7 @@ export class UserGroupsController {
     schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', example: 'RPL Team' },
+      group_name: { type: 'string', example: 'RPL Team' },
         description: { type: 'string', example: 'Group untuk tim RPL' },
       },
     },
@@ -56,7 +56,7 @@ export class UserGroupsController {
     schema: {
       type: 'object',
       properties: {
-        name: { type: 'string', example: 'RPL Team Baru' },
+        group_name: { type: 'string', example: 'RPL Team Baru' },
         description: { type: 'string', example: 'Group untuk project RPL Semester 5' },
       },
     },
