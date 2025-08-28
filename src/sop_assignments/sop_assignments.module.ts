@@ -6,10 +6,12 @@ import { SOPAssignmentsController } from './sop_assignments.controller';
 import { SOP } from 'src/sops/sop.entity'; 
 import { User } from 'src/users/user.entity'; 
 import { UserGroup } from 'src/user_groups/user_group.entity'; 
+import { MailModule } from 'src/mail/mail.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([SOPAssignment, SOP, User, UserGroup]),
+    MailModule,
   ],
   providers: [SOPAssignmentsService],
   controllers: [SOPAssignmentsController],

@@ -1,20 +1,14 @@
 import { IsInt, IsOptional } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-
 
 export class CreateSOPAssignmentDto {
-  @ApiProperty()
-
   @IsInt()
-  sop_title: string;
+  sop_id: number;
 
-  @ApiProperty()
   @IsOptional()
   @IsInt()
-  user_name?: string;
+  user_id?: number;
 
-  @ApiProperty()
   @IsOptional()
   @IsInt()
-  group_name?: string;
+  group_id?: number;
 }

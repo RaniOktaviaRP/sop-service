@@ -7,6 +7,7 @@ import { User, UserRole } from 'src/users/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { Division } from 'src/divisions/division.entity';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
+import { ActivityLogsService } from 'src/activity_logs/activity_logs.service';
 
 @Injectable()
 export class AuthService {
@@ -18,7 +19,9 @@ export class AuthService {
     private divisionsRepo: Repository<Division>,
 
     private jwtService: JwtService,
-  ) {}
+
+    private activityLogsService: ActivityLogsService,
+  ) { }
 
   /** Validasi login user */
   async validateUser(email: string, password: string): Promise<User> {
@@ -36,7 +39,7 @@ export class AuthService {
   }
 
   /** Login */
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, ip?: string) {
     const user = await this.validateUser(dto.email, dto.password);
 
     const payload = {
@@ -46,6 +49,13 @@ export class AuthService {
       division_id: user.division?.id || null,
       division_name: user.division?.division_name || null,
     };
+
+    await this.activityLogsService.createLog({
+      user_id: user.id,
+      activity_type: 'Login',
+      activity_description: `${user.username} berhasil login`,
+      ip_address: ip, 
+    });
 
     return {
       access_token: this.jwtService.sign(payload, {

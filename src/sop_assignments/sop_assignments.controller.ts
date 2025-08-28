@@ -34,22 +34,22 @@ export class SOPAssignmentsController {
     schema: {
       type: 'object',
       properties: {
-        group_name: { type: 'string', example: 'Team QA' },
-        user_name: { type: 'string', example: 'Rani Oktavia' },
-        sopId: { type: 'number', example: 1 }
+        sop_id: { type: 'number', example: 1 },
+        user_id: { type: 'number', example: 5, nullable: true },
+        group_id: { type: 'number', example: 2, nullable: true }
       },
-      required: ['sopId'],
+      required: ['sop_id'],
     },
   })
   @ApiResponse({ status: 201, description: 'SOP assignment created', type: SOPAssignment })
   async create(@Body() data: CreateSOPAssignmentDto): Promise<SOPAssignment> {
-  return this.service.create(data);
-}
+    return this.service.create(data);
+  }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete SOP assignment by ID' })
   @ApiResponse({ status: 200, description: 'SOP assignment deleted' })
   async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-  return this.service.remove(id); 
-}
+    return this.service.remove(id); 
+  }
 }

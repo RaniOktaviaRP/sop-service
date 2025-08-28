@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { MailerModule } from '@nestjs-modules/mailer';
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { join } from 'path';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SopsModule } from './sops/sops.module';
@@ -18,6 +22,7 @@ import { UsersModule } from './users/users.module';
 import { UserGroupsModule } from './user_groups/user_groups.module';
 import { SopFilesModule } from './sop_files/sop_files.module';
 import { AuthModule } from './auth/auth.module';
+import { MailService } from './mail/mail.service';
 
 @Module({
   imports: [
@@ -42,6 +47,31 @@ import { AuthModule } from './auth/auth.module';
         signOptions: { expiresIn: '1d' },
       }),
     }),
+    MailerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (config: ConfigService) => ({
+        transport: {
+          host: config.get<string>('MAIL_HOST'),
+          port: config.get<number>('MAIL_PORT'),
+          secure: false, // true kalau pakai 465
+          auth: {
+            user: config.get<string>('MAIL_USER'),
+            pass: config.get<string>('MAIL_PASS'),
+          },
+        },
+        defaults: {
+          from: config.get<string>('MAIL_FROM'),
+        },
+        template: {
+           dir: join(process.cwd(), 'src', 'templates'), // ⬅️ karena assignment.hbs ada di src/mail
+          adapter: new HandlebarsAdapter(),
+          options: {
+            strict: true,
+          },
+        },
+      }),
+    }),
     SopsModule,
     SOPVersionsModule,
     CategoriesModule,
@@ -58,6 +88,6 @@ import { AuthModule } from './auth/auth.module';
     AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, MailService],
 })
 export class AppModule {}

@@ -11,6 +11,8 @@ import { UpdateSOPDto } from './dto/update-sop.dto';
 import { Category } from 'src/categories/category.entity';
 import { Division } from 'src/divisions/division.entity';
 import { SOPAssignment } from 'src/sop_assignments/sop_assignment.entity';
+import { User } from 'src/users/user.entity';
+import { MailService } from 'src/mail/mail.service'; // ✅ untuk kirim email
 
 @Injectable()
 export class SopsService {
@@ -21,7 +23,11 @@ export class SopsService {
     @InjectRepository(SOPAssignment)
     private readonly sopAssignmentRepo: Repository<SOPAssignment>,
 
+    @InjectRepository(User)
+    private readonly userRepo: Repository<User>, // ✅ ambil user divisi
+
     private readonly dataSource: DataSource,
+    private readonly mailService: MailService, // ✅ inject MailService
   ) {}
 
   async create(dto: CreateSOPDto): Promise<SOP> {
@@ -29,7 +35,32 @@ export class SopsService {
       ...dto,
       status: dto.status ?? 'Pending Review', // default jika kosong
     });
-    return await this.sopRepo.save(sop);
+    const savedSop = await this.sopRepo.save(sop);
+
+    // ✅ otomatis assign ke semua user divisi kalau division_id ada
+    if (dto.division_id) {
+      const users = await this.userRepo.find({
+        where: { division: { id: dto.division_id } },
+        relations: ['division'],
+      });
+
+      if (users.length > 0) {
+        const assignments = users.map(user =>
+          this.sopAssignmentRepo.create({
+            sop: savedSop,
+            user,
+          }),
+        );
+        await this.sopAssignmentRepo.save(assignments);
+
+        // Kirim email notifikasi ke semua user divisi
+        for (const user of users) {
+          await this.mailService.sendAssignmentEmail(user.email, savedSop.title);
+        }
+      }
+    }
+
+    return savedSop;
   }
 
   async findAll(): Promise<SOP[]> {
@@ -122,7 +153,7 @@ export class SopsService {
     const assignments = await this.sopAssignmentRepo.find({
       where: [
         { user: { id: userId } },
-        { group: { users: { id: userId } } }, 
+        { group: { users: { id: userId } } },
       ],
       relations: ['sop'],
     });
@@ -136,58 +167,60 @@ export class SopsService {
   }
 
   async findFiltered(filters: { divisionId?: number; groupId?: number; userId?: number }): Promise<SOP[]> {
-  const query = this.sopRepo
-    .createQueryBuilder('sop')
-    .leftJoinAndSelect('sop.category', 'category')
-    .leftJoinAndSelect('sop.division', 'division')
-    .leftJoinAndSelect('sop.created_by_user', 'creator')
-    .leftJoinAndSelect('sop.versions', 'versions')
-    .leftJoinAndSelect('sop.sopAssignments', 'assignment')
-    .leftJoinAndSelect('assignment.user', 'assignedUser')
-    .leftJoinAndSelect('assignment.group', 'assignedGroup');
+    const query = this.sopRepo
+      .createQueryBuilder('sop')
+      .leftJoinAndSelect('sop.category', 'category')
+      .leftJoinAndSelect('sop.division', 'division')
+      .leftJoinAndSelect('sop.created_by_user', 'creator')
+      .leftJoinAndSelect('sop.versions', 'versions')
+      .leftJoinAndSelect('sop.sopAssignments', 'assignment')
+      .leftJoinAndSelect('assignment.user', 'assignedUser')
+      .leftJoinAndSelect('assignment.group', 'assignedGroup');
 
-  // Filter berdasarkan divisi
-  if (filters.divisionId) {
-    query.andWhere('division.id = :divisionId', { divisionId: filters.divisionId });
+    if (filters.divisionId) {
+      query.andWhere('division.id = :divisionId', { divisionId: filters.divisionId });
+    }
+
+    if (filters.userId) {
+      query.andWhere('(assignedUser.id = :userId OR sop.created_by_user.id = :userId)', { userId: filters.userId });
+    }
+
+    if (filters.groupId) {
+      query.andWhere('assignedGroup.id = :groupId', { groupId: filters.groupId });
+    }
+
+    query.orderBy('sop.created_at', 'DESC');
+
+    return await query.getMany();
   }
 
-  // Filter berdasarkan user yang di-assign
-  if (filters.userId) {
-    query.andWhere('(assignedUser.id = :userId OR sop.created_by_user.id = :userId)', { userId: filters.userId });
+  async findByAssignments(userId: number, divisionId: number): Promise<SOP[]> {
+    const divisionSops = await this.findByDivision(divisionId);
+
+    const assignments = await this.sopAssignmentRepo.find({
+      where: [
+        { user: { id: userId } },
+        { group: { users: { id: userId } } },
+      ],
+      relations: ['sop'],
+    });
+    const assignedSops = assignments.map(a => a.sop);
+
+    const allSops = [...divisionSops, ...assignedSops];
+    const uniqueSops = Array.from(new Map(allSops.map(s => [s.id, s])).values());
+
+    return uniqueSops;
   }
 
-  // Filter berdasarkan group
-  if (filters.groupId) {
-    query.andWhere('assignedGroup.id = :groupId', { groupId: filters.groupId });
+  async findAccessibleSops(userId: number, divisionId: number) {
+    return this.sopRepo
+      .createQueryBuilder('sop')
+      .leftJoinAndSelect('sop.sopAssignments', 'assignment')
+      .leftJoinAndSelect('assignment.group', 'group')
+      .leftJoinAndSelect('group.members', 'groupMember')
+      .where('sop.division_id = :divisionId', { divisionId })
+      .orWhere('assignment.user_id = :userId', { userId })
+      .orWhere('groupMember.user_id = :userId', { userId })
+      .getMany();
   }
-
-  query.orderBy('sop.created_at', 'DESC');
-
-  const sops = await query.getMany();
-
-  return sops;
-}
-
-async findByAssignments(userId: number, divisionId: number): Promise<SOP[]> {
-  // SOP untuk divisi user
-  const divisionSops = await this.findByDivision(divisionId);
-
-  // SOP yang diassign ke user atau grup user
-  const assignments = await this.sopAssignmentRepo.find({
-    where: [
-      { user: { id: userId } },
-      { group: { users: { id: userId } } }, 
-    ],
-    relations: ['sop'],
-  });
-  const assignedSops = assignments.map(a => a.sop);
-
-  // Gabungkan dan hilangkan duplikat
-  const allSops = [...divisionSops, ...assignedSops];
-  const uniqueSops = Array.from(new Map(allSops.map(s => [s.id, s])).values());
-
-  return uniqueSops;
-}
-
-
 }

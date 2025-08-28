@@ -55,6 +55,7 @@ export class GroupMembersService {
     return this.memberRepo.find({
       where: { group_id },
       relations: ['user'],
+      order: { id: 'ASC' },
     });
   }
 
@@ -62,53 +63,47 @@ export class GroupMembersService {
     return this.memberRepo.find({
       where: { user_id },
       relations: ['group'],
+      order: { id: 'ASC' },
     });
   }
 
-  // Fungsi baru: createByName
-  async createByName(data: { group_name: string; user_name: string }): Promise<GroupMember> {
-    // Cari group
-    const group = await this.userGroupsService.findByName(data.group_name);
-    if (!group) throw new BadRequestException(`Group '${data.group_name}' tidak ditemukan`);
+// ✅ Versi pakai ID
+async createById(data: { group_id: number; user_id: number }): Promise<GroupMember> {
+  const { group_id, user_id } = data;
 
-    // Cari user
-    const user = await this.usersService.findByName(data.user_name);
-    if (!user) throw new BadRequestException(`User '${data.user_name}' tidak ditemukan`);
+  // Cek apakah group & user valid
+  const group = await this.userGroupsService.findOne(group_id);
+  if (!group) throw new BadRequestException(`Group dengan id ${group_id} tidak ditemukan`);
 
-    // Cek apakah user sudah ada di group_members
-    const existingMember = await this.memberRepo.findOne({
-      where: { user_id: user.id, group_id: group.id },
-    });
-    if (existingMember)
-      throw new BadRequestException(`User '${data.user_name}' sudah berada di group '${data.group_name}'`);
+  // 🔧 convert ke string
+  const user = await this.usersService.findOne(String(user_id));
+  if (!user) throw new BadRequestException(`User dengan id ${user_id} tidak ditemukan`);
 
-    // Buat record di table group_members
-    const member = this.memberRepo.create({
-      group_id: group.id,
-      user_id: user.id,
-    });
-    await this.memberRepo.save(member);
-
-
-    // Update users.group_id langsung dengan query builder
-    await this.usersRepository
-      .createQueryBuilder()
-      .update(User)
-      .set({ group: group }) 
-      .where("id = :id", { id: user.id })
-      .execute();
-
-    const updatedUser = await this.usersRepository.findOne({
-      where: { id: user.id },
-      relations: ['group'],
-    });
-
-    if (updatedUser) {
-      console.log(`Updated user.group_id: ${updatedUser.group?.id}`);
-    } else {
-      console.log(`User dengan id ${user.id} tidak ditemukan setelah update`);
-    }
-
-    return member;
+  // Cek apakah user sudah ada di group_members
+  const existingMember = await this.memberRepo.findOne({
+    where: { user_id, group_id },
+  });
+  if (existingMember) {
+    throw new BadRequestException(
+      `User '${user.username}' sudah ada di group '${group.group_name}'`,
+    );
   }
+
+  // Buat record di table group_members
+  const member = this.memberRepo.create({ group_id, user_id });
+  await this.memberRepo.save(member);
+
+  // Update relasi user.group
+  user.group = group;
+  await this.usersRepository.save(user);
+
+  // Return member dengan relasi lengkap
+  const newMember = await this.memberRepo.findOne({
+    where: { id: member.id },
+    relations: ['user', 'group'],
+  });
+
+  if (!newMember) throw new NotFoundException('Member tidak ditemukan setelah dibuat');
+  return newMember;
+}
 }

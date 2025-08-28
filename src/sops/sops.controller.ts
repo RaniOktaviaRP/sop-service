@@ -54,8 +54,8 @@ export class SopsController {
 
   @Post()
   @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
   @Roles('Admin')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Buat SOP baru' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -156,35 +156,25 @@ export class SopsController {
     };
   }
 
+@ApiBearerAuth('access-token')
+@UseGuards(JwtAuthGuard)
+@Roles('Admin', 'Employee')
+@Get()
+async findAll(@Request() req): Promise<ApiResponseType<any>> {
+  console.log("👉 Token dari header:", req.headers.authorization);
+  console.log("👉 Payload hasil verify:", req.user);
 
-  // 🔹 GET ALL SOP (hanya untuk division user yg login)
-  @ApiBearerAuth('access-token')
-  @UseGuards(JwtAuthGuard)
-  @Roles('Admin', 'Employee')
-  @Get()
-  async findAll(
-    @Request() req,
-    @Query('divisionId') divisionId?: number,
-    @Query('groupId') groupId?: number,
-    @Query('userId') userId?: number
-  ): Promise<ApiResponseType<any>> {
+  const { id: userId, division_id: divisionId, role } = req.user;
 
-    console.log("👉 Token dari header:", req.headers.authorization);
-    console.log("👉 Payload hasil verify:", req.user);
+  let sops;
+  const isAdmin = role?.toLowerCase() === 'admin';
+sops = isAdmin
+  ? await this.sopsService.findAll()
+  : await this.sopsService.findAccessibleSops(userId, divisionId);
 
-    // Default: gunakan division_id dari token jika tidak dikirim query param
-    const divId = divisionId || req.user.division_id;
 
-    // Panggil service dengan filter
-    const sops = await this.sopsService.findFiltered({
-      divisionId: divId,
-      groupId,
-      userId
-    });
-
-    return { data: sops, message: 'SOP list retrieved successfully' };
-  }
-
+  return { data: sops, message: 'SOP list retrieved successfully' };
+}
 
   @Get(':id')
   @ApiBearerAuth('access-token')
@@ -200,7 +190,6 @@ export class SopsController {
   @ApiBearerAuth('access-token')
   @UseGuards(JwtAuthGuard)
   @Roles('Admin')
-
   @ApiOperation({ summary: 'Update SOP berdasarkan id' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

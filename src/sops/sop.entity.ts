@@ -51,7 +51,6 @@ export class SOP {
   @OneToMany(() => SOPAssignment, (assignment) => assignment.sop)
   sopAssignments: SOPAssignment[];
 
-
   @ManyToOne(() => Division)
   @JoinColumn({ name: 'division_id' })
   division: Division;
